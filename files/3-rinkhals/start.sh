@@ -1,3 +1,17 @@
+#!/bin/sh
+
+# Optimize VM settings for real-time performance
+echo 200 > /proc/sys/vm/vfs_cache_pressure  # Prioritize process memory over cache
+
+# Start periodic cache clearing to maintain memory
+(
+    while true; do
+        sleep 300  # Every 5 minutes
+        sync       # Flush filesystem buffers
+        echo 1 > /proc/sys/vm/drop_caches  # Clear page cache only
+    done
+) &
+
 . $(dirname $(realpath $0))/tools.sh
 
 export TZ=UTC
@@ -273,6 +287,10 @@ for TARGET in $TARGETS; do
     fi
 done
 
+# Optimize Go garbage collector for real-time performance
+export GOGC=800          # Much less frequent GC (default is 100)
+export GOMEMLIMIT=100MiB # Limit Go heap to 100MB to prevent memory spikes
+
 # Tweak processes priority to avoid MCU timing and more generally priting errors. (https://github.com/jbatonnet/Rinkhals/issues/128)
 nice -n -20 ./gklib -a /tmp/unix_uds1 /userdata/app/gk/printer_data/config/printer.generated.cfg >> $RINKHALS_LOGS/gklib.log 2>&1 &
 chrt -p 89 $(get_by_name ksoftirqd/0)
@@ -340,7 +358,7 @@ done
 cd $RINKHALS_ROOT
 export LD_LIBRARY_PATH=$OLD_LD_LIBRARY_PATH
 
-
+echo 1 > /proc/sys/vm/drop_caches
 ################
 log "> Cleaning up..."
 
